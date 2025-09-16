@@ -1,22 +1,24 @@
-# FILE: codemagic.yaml
+# FILE: codemagic.yaml (VERSI DIPERBAIKI)
 
-# Definisikan alur kerja utama kita
 workflows:
-  # Beri nama alur kerja ini, misalnya "android-app-build"
   android-app-build:
     name: Build ZHRecorder APK
     
-    # Tentukan jenis mesin yang akan digunakan
-    instance_type: mac_mini_m1
+    # Minta mesin Linux standar, lebih umum untuk build Android
+    instance_type: linux
     
-    # Tentukan lingkungan build
+    # Definisikan variabel lingkungan yang dibutuhkan
     environment:
-      android_sdk_version: '31' # Sesuaikan dengan compileSdkVersion di build.gradle
+      # Kita akan menggunakan grup variabel 'android-sdk'
+      # Ini akan secara otomatis mengatur path seperti $ANDROID_SDK_ROOT
       groups:
-        - build-tools # Grup variabel untuk Android
         - android-sdk
-        
-    # Ini adalah "resep" atau langkah-langkah yang akan dijalankan
+      
+      # PERBAIKAN: Definisikan versi Java yang kita butuhkan
+      # Sesuai dengan 'JavaVersion.VERSION_1_8' di build.gradle-mu
+      vars:
+        JAVA_HOME: /usr/lib/jvm/java-1.8.0-openjdk-amd64
+
     scripts:
       - name: Set up local properties
         script: | 
@@ -24,10 +26,13 @@ workflows:
           
       - name: Build APK with Gradle
         script: | 
+          # Pindah ke direktori root proyekmu
           cd $CM_BUILD_DIR
+          # Beri izin eksekusi pada Gradle wrapper
+          chmod +x ./gradlew
+          # Jalankan build
           ./gradlew assembleDebug --no-daemon
           
-    # Definisikan di mana harus mencari file .apk hasil akhirnya
     artifacts:
-      - build/**/outputs/apk/**/*.apk
-      
+      # Cari .apk di dalam direktori build/app/
+      - app/build/outputs/apk/**/*.apk
