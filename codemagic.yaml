@@ -1,0 +1,33 @@
+# FILE: codemagic.yaml
+
+# Definisikan alur kerja utama kita
+workflows:
+  # Beri nama alur kerja ini, misalnya "android-app-build"
+  android-app-build:
+    name: Build ZHRecorder APK
+    
+    # Tentukan jenis mesin yang akan digunakan
+    instance_type: mac_mini_m1
+    
+    # Tentukan lingkungan build
+    environment:
+      android_sdk_version: '31' # Sesuaikan dengan compileSdkVersion di build.gradle
+      groups:
+        - build-tools # Grup variabel untuk Android
+        - android-sdk
+        
+    # Ini adalah "resep" atau langkah-langkah yang akan dijalankan
+    scripts:
+      - name: Set up local properties
+        script: | 
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/local.properties"
+          
+      - name: Build APK with Gradle
+        script: | 
+          cd $CM_BUILD_DIR
+          ./gradlew assembleDebug --no-daemon
+          
+    # Definisikan di mana harus mencari file .apk hasil akhirnya
+    artifacts:
+      - build/**/outputs/apk/**/*.apk
+      
