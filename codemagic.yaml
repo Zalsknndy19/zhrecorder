@@ -5,7 +5,7 @@ workflows:
     name: Build ZHRecorder APK
     
     # Minta mesin Linux standar, lebih umum untuk build Android
-    instance_type: linux
+    #instance_type: linux
     
     # Definisikan variabel lingkungan yang dibutuhkan
     environment:
