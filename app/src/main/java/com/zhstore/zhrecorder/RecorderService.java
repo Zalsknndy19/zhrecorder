@@ -7,8 +7,6 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.hardware.display.VirtualDisplay;
-import android.media.AudioAttributes;
-import android.media.AudioPlaybackCaptureConfiguration;
 import android.media.MediaRecorder;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
@@ -17,7 +15,6 @@ import android.os.Environment;
 import android.os.IBinder;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.WindowManager;
 import android.widget.Toast;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.NotificationCompat;
@@ -44,6 +41,8 @@ public class RecorderService extends Service {
     private MediaRecorder mediaRecorder;
     private VirtualDisplay virtualDisplay;
 
+    private MediaProjection.Callback projectionCallback;
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -65,6 +64,7 @@ public class RecorderService extends Service {
         startForeground(NOTIFICATION_ID, buildNotification());
 
         int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1);
+        // Perbaikan: Gunakan cara yang benar untuk mengambil Parcelable di Android versi baru
         Intent data = intent.getParcelableExtra(EXTRA_DATA);
 
         mediaProjection = projectionManager.getMediaProjection(resultCode, data);
@@ -74,43 +74,62 @@ public class RecorderService extends Service {
             return;
         }
 
-        initRecorder();
-        createVirtualDisplay();
+        // Siapkan "pendengar" untuk saat sesi perekaman dihentikan (misal dari notifikasi)
+        projectionCallback = new MediaProjection.Callback() {
+            @Override
+            public void onStop() {
+                // Jika perekaman dihentikan dari luar, pastikan service kita juga berhenti
+                if (mediaRecorder != null) {
+                    stopRecording();
+                }
+            }
+        };
+        mediaProjection.registerCallback(projectionCallback, null);
 
         try {
+            initRecorder();
+            createVirtualDisplay();
             mediaRecorder.start();
             Toast.makeText(this, "Perekaman Dimulai!", Toast.LENGTH_SHORT).show();
-        } catch (IllegalStateException e) {
-            Log.e(TAG, "Gagal memulai MediaRecorder", e);
+        } catch (Exception e) {
+            Log.e(TAG, "Gagal memulai perekaman", e);
             stopRecording();
         }
     }
 
     private void stopRecording() {
+        if (mediaProjection != null) {
+            mediaProjection.unregisterCallback(projectionCallback);
+            mediaProjection.stop();
+            mediaProjection = null;
+        }
+        if (virtualDisplay != null) {
+            virtualDisplay.release();
+            virtualDisplay = null;
+        }
         if (mediaRecorder != null) {
-            try { mediaRecorder.stop(); } catch (Exception e) { Log.e(TAG, "Error saat stop()", e); }
+            try {
+                mediaRecorder.stop();
+            } catch (RuntimeException stopException) {
+                // Abaikan jika sudah dihentikan
+            }
             mediaRecorder.reset();
             mediaRecorder.release();
+            mediaRecorder = null;
         }
-        if (virtualDisplay != null) virtualDisplay.release();
-        if (mediaProjection != null) mediaProjection.stop();
-        
-        mediaRecorder = null;
-        virtualDisplay = null;
-        mediaProjection = null;
-        
         stopForeground(true);
         stopSelf();
     }
     
-    private void initRecorder() {
+    private void initRecorder() throws IOException {
         mediaRecorder = new MediaRecorder();
 
-        // Ini adalah urutan yang benar
-        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        // Menggunakan sumber audio REMOTE_SUBMIX yang lebih modern
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.REMOTE_SUBMIX);
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
-        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
         
+        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+
         DisplayMetrics metrics = getResources().getDisplayMetrics();
         mediaRecorder.setVideoSize(metrics.widthPixels, metrics.heightPixels);
         mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
@@ -126,26 +145,10 @@ public class RecorderService extends Service {
         String filePath = dir.getAbsolutePath() + "/ZHRec_" + timestamp + ".mp4";
         mediaRecorder.setOutputFile(filePath);
 
-        try {
-            mediaRecorder.prepare();
-        } catch (IOException e) {
-            Log.e(TAG, "MediaRecorder prepare() gagal", e);
-            stopRecording();
-        }
+        mediaRecorder.prepare();
     }
 
     private void createVirtualDisplay() {
-        if (mediaRecorder == null || mediaProjection == null) return;
-
-        // Buat konfigurasi untuk menangkap audio internal
-        AudioPlaybackCaptureConfiguration audioConfig = new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
-                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-                .addMatchingUsage(AudioAttributes.USAGE_GAME)
-                .build();
-        
-        // Beri tahu MediaProjection untuk mengalihkan audio
-        mediaProjection.setAudioPlaybackCaptureConfig(audioConfig);
-
         DisplayMetrics metrics = getResources().getDisplayMetrics();
         virtualDisplay = mediaProjection.createVirtualDisplay("ZHRecorder",
                 metrics.widthPixels, metrics.heightPixels, metrics.densityDpi,
@@ -163,15 +166,17 @@ public class RecorderService extends Service {
     
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel serviceChannel = new NotificationChannel(
+            NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
                     "ZHRecorder Service Channel",
                     NotificationManager.IMPORTANCE_DEFAULT
             );
-            getSystemService(NotificationManager.class).createNotificationChannel(serviceChannel);
+            getSystemService(NotificationManager.class).createNotificationChannel(channel);
         }
     }
 
     @Override
-    public IBinder onBind(Intent intent) { return null; }
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
 }
