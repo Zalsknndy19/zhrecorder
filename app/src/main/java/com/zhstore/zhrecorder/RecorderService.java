@@ -53,10 +53,13 @@ public class RecorderService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && ACTION_START.equals(intent.getAction())) {
-            startRecording(intent);
-        } else if (intent != null && ACTION_STOP.equals(intent.getAction())) {
-            stopRecording();
+        if (intent != null) {
+            String action = intent.getAction();
+            if (ACTION_START.equals(action)) {
+                startRecording(intent);
+            } else if (ACTION_STOP.equals(action)) {
+                stopRecording();
+            }
         }
         return START_NOT_STICKY;
     }
@@ -79,7 +82,6 @@ public class RecorderService extends Service {
 
         try {
             mediaRecorder.start();
-            Toast.makeText(this, "Perekaman Dimulai!", Toast.LENGTH_SHORT).show();
         } catch (IllegalStateException e) {
             Log.e(TAG, "Gagal memulai MediaRecorder", e);
             stopRecording();
@@ -110,15 +112,7 @@ public class RecorderService extends Service {
     private void initRecorder() {
         mediaRecorder = new MediaRecorder();
 
-        // Mengatur sumber audio ke audio internal
-        AudioPlaybackCaptureConfiguration audioConfig = new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
-                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-                .addMatchingUsage(AudioAttributes.USAGE_GAME)
-                .build();
-        
         mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC); // Sumber dummy
-        mediaRecorder.setAudioPlaybackCaptureConfig(audioConfig);
-
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
         mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
 
@@ -147,6 +141,17 @@ public class RecorderService extends Service {
     }
 
     private void createVirtualDisplay() {
+        if (mediaRecorder == null || mediaProjection == null) return;
+
+        // Buat konfigurasi untuk menangkap audio internal
+        AudioPlaybackCaptureConfiguration audioConfig = new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
+                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                .build();
+        
+        // Beri tahu sistem untuk MENGALIHKAN audio internal ke input mikrofon
+        mediaProjection.setAudioPlaybackCaptureConfig(audioConfig);
+
         DisplayMetrics metrics = getResources().getDisplayMetrics();
         virtualDisplay = mediaProjection.createVirtualDisplay("ZHRecorder",
                 metrics.widthPixels, metrics.heightPixels, metrics.densityDpi,
