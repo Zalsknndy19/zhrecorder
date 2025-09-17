@@ -1,41 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.zhstore.zhrecorder" >
-      <!-- ... (di dalam <manifest> ... </manifest>) ... -->
+    package="com.zhstore.zhrecorder">
+
+    <!-- Izin Wajib -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    
-    <!-- PASTIKAN IZIN INI ADA. INI WAJIB UNTUK FOREGROUND SERVICE -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-
-    <!-- IZIN UNTUK AUDIO INTERNAL. INI MUNGKIN PENYEBAB UTAMA. -->
-    <!-- 'captureAudioOutput' adalah izin level 'signature', mungkin tidak bisa didapatkan. -->
-    <!-- Kita akan mencobanya. Jika masih crash, kita akan menonaktifkan audio dulu. -->
-    <uses-permission android:name="android.permission.CAPTURE_AUDIO_OUTPUT" />
+    
+    <!-- Izin Penyimpanan (hanya dibutuhkan jika targetSdk < 29) -->
+    <!-- Kita tetap menyertakannya untuk jaga-jaga -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/AppTheme"
-        android:requestLegacyExternalStorage="true"
-		  android:resizeableActivity = "true">
+        android:requestLegacyExternalStorage="true">
+
         <activity
             android:name=".MainActivity"
-            android:label="@string/app_name"
-            android:exported="true" >
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         
         <service
             android:name=".RecorderService"
+            android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+            
     </application>
 
 </manifest>
