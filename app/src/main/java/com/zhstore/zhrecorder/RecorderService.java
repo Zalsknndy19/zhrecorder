@@ -53,50 +53,44 @@ public class RecorderService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null) {
-            String action = intent.getAction();
-            if (ACTION_START.equals(action)) {
-                startRecording(intent);
-            } else if (ACTION_STOP.equals(action)) {
-                stopRecording();
-            }
+        if (intent != null && ACTION_START.equals(intent.getAction())) {
+            startRecording(intent);
+        } else if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            stopRecording();
         }
         return START_NOT_STICKY;
     }
 
-    private void startRecording() {
-        if (mediaRecorder == null || mediaProjection == null) return;
-        
-        // ================== PERBAIKAN UTAMA DI SINI ==================
-        // Buat konfigurasi untuk menangkap audio internal
-        AudioPlaybackCaptureConfiguration audioConfig = new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
-                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
-                .addMatchingUsage(AudioAttributes.USAGE_GAME)
-                .build();
-        
-        // Beri tahu sistem untuk MENGALIHKAN audio internal ke input mikrofon
-        // Ini membutuhkan izin RECORD_AUDIO, yang sudah kita minta.
-        mediaProjection.setAudioPlaybackCaptureConfig(audioConfig);
-        // =============================================================
+    private void startRecording(Intent intent) {
+        startForeground(NOTIFICATION_ID, buildNotification());
 
-        DisplayMetrics metrics = getResources().getDisplayMetrics();
-        virtualDisplay = mediaProjection.createVirtualDisplay("ZHRecorder",
-                metrics.widthPixels, metrics.heightPixels, metrics.densityDpi,
-                android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                mediaRecorder.getSurface(), null, null);
-        
-        mediaRecorder.start();
+        int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1);
+        Intent data = intent.getParcelableExtra(EXTRA_DATA);
+
+        mediaProjection = projectionManager.getMediaProjection(resultCode, data);
+        if (mediaProjection == null) {
+            Log.e(TAG, "MediaProjection tidak bisa didapatkan.");
+            stopSelf();
+            return;
+        }
+
+        initRecorder();
+        createVirtualDisplay();
+
+        try {
+            mediaRecorder.start();
+            Toast.makeText(this, "Perekaman Dimulai!", Toast.LENGTH_SHORT).show();
+        } catch (IllegalStateException e) {
+            Log.e(TAG, "Gagal memulai MediaRecorder", e);
+            stopRecording();
+        }
     }
 
     private void stopRecording() {
         if (mediaRecorder != null) {
-            try {
-                mediaRecorder.stop();
-                mediaRecorder.reset();
-                mediaRecorder.release();
-            } catch (Exception e) {
-                Log.e(TAG, "Error saat menghentikan MediaRecorder", e);
-            }
+            try { mediaRecorder.stop(); } catch (Exception e) { Log.e(TAG, "Error saat stop()", e); }
+            mediaRecorder.reset();
+            mediaRecorder.release();
         }
         if (virtualDisplay != null) virtualDisplay.release();
         if (mediaProjection != null) mediaProjection.stop();
@@ -112,10 +106,11 @@ public class RecorderService extends Service {
     private void initRecorder() {
         mediaRecorder = new MediaRecorder();
 
-        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC); // Sumber dummy
+        // Ini adalah urutan yang benar
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
         mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
         mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-
+        
         DisplayMetrics metrics = getResources().getDisplayMetrics();
         mediaRecorder.setVideoSize(metrics.widthPixels, metrics.heightPixels);
         mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
@@ -135,7 +130,6 @@ public class RecorderService extends Service {
             mediaRecorder.prepare();
         } catch (IOException e) {
             Log.e(TAG, "MediaRecorder prepare() gagal", e);
-            Toast.makeText(this, "Gagal menyiapkan perekam.", Toast.LENGTH_SHORT).show();
             stopRecording();
         }
     }
@@ -149,7 +143,7 @@ public class RecorderService extends Service {
                 .addMatchingUsage(AudioAttributes.USAGE_GAME)
                 .build();
         
-        // Beri tahu sistem untuk MENGALIHKAN audio internal ke input mikrofon
+        // Beri tahu MediaProjection untuk mengalihkan audio
         mediaProjection.setAudioPlaybackCaptureConfig(audioConfig);
 
         DisplayMetrics metrics = getResources().getDisplayMetrics();
@@ -164,7 +158,6 @@ public class RecorderService extends Service {
                 .setContentTitle("ZHRecorder Aktif")
                 .setContentText("Merekam layar...")
                 .setSmallIcon(R.drawable.ic_launcher)
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .build();
     }
     

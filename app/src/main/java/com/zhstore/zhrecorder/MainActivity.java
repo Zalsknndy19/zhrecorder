@@ -27,11 +27,7 @@ public class MainActivity extends AppCompatActivity {
     private MediaProjectionManager projectionManager;
     private Button toggleButton;
 
-    // Daftar izin yang kita butuhkan
-    private static final String[] PERMISSIONS = {
-            Manifest.permission.RECORD_AUDIO
-            // WRITE_EXTERNAL_STORAGE tidak lagi dibutuhkan untuk API 29+
-    };
+    private static final String[] PERMISSIONS = { Manifest.permission.RECORD_AUDIO };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,16 +37,14 @@ public class MainActivity extends AppCompatActivity {
         toggleButton = findViewById(R.id.toggle_button);
         projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
-        updateButtonState(); // Atur teks tombol saat aplikasi dibuka
+        updateButtonState();
 
         toggleButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (isServiceRunning(RecorderService.class)) {
-                    // Jika service sedang berjalan, kirim perintah STOP
                     stopRecorderService();
                 } else {
-                    // Jika tidak, mulai proses START
                     if (checkAndRequestPermissions()) {
                         startScreenCapture();
                     }
@@ -62,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        updateButtonState(); // Perbarui status tombol setiap kali kembali ke aplikasi
+        updateButtonState();
     }
 
     private void startScreenCapture() {
@@ -76,7 +70,7 @@ public class MainActivity extends AppCompatActivity {
         serviceIntent.putExtra(RecorderService.EXTRA_DATA, data);
         startForegroundService(serviceIntent);
         updateButtonState();
-        finish(); // Tutup activity agar tidak mengganggu
+        finish();
     }
 
     private void stopRecorderService() {
@@ -122,7 +116,7 @@ public class MainActivity extends AppCompatActivity {
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_CODE_SCREEN_CAPTURE) {
-            if (resultCode == RESULT_OK) {
+            if (resultCode == Activity.RESULT_OK) {
                 startRecorderService(resultCode, data);
             } else {
                 Toast.makeText(this, "Izin rekam layar ditolak.", Toast.LENGTH_SHORT).show();
