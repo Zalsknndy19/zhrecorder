@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import androidx.annotation.RequiresApi; // Import baru
 
 public class RecorderService extends Service {
 
@@ -102,6 +103,7 @@ public class RecorderService extends Service {
         stopSelf();
     }
     
+    @RequiresApi(api = Build.VERSION_CODES.Q)
     private void initRecorder() {
         mediaRecorder = new MediaRecorder();
 
