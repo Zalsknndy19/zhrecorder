@@ -1,5 +1,7 @@
 package com.zhstore.zhrecorder;
 
+import android.Manifest;
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
@@ -9,11 +11,13 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
-import androidx.annotation.NonNull; // Import baru
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import android.Manifest;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -23,7 +27,11 @@ public class MainActivity extends AppCompatActivity {
     private MediaProjectionManager projectionManager;
     private Button toggleButton;
 
-    private static final String[] PERMISSIONS = { Manifest.permission.RECORD_AUDIO };
+    // Daftar izin yang kita butuhkan
+    private static final String[] PERMISSIONS = {
+            Manifest.permission.RECORD_AUDIO
+            // WRITE_EXTERNAL_STORAGE tidak lagi dibutuhkan untuk API 29+
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,17 +41,16 @@ public class MainActivity extends AppCompatActivity {
         toggleButton = findViewById(R.id.toggle_button);
         projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
-        // Atur status tombol saat aplikasi pertama kali dibuka
-        updateButtonState();
+        updateButtonState(); // Atur teks tombol saat aplikasi dibuka
 
         toggleButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (isServiceRunning(RecorderService.class)) {
-                    // Jika service sedang berjalan, kita kirim perintah STOP
+                    // Jika service sedang berjalan, kirim perintah STOP
                     stopRecorderService();
                 } else {
-                    // Jika tidak, kita mulai proses START
+                    // Jika tidak, mulai proses START
                     if (checkAndRequestPermissions()) {
                         startScreenCapture();
                     }
@@ -51,12 +58,15 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-    
+
     @Override
     protected void onResume() {
         super.onResume();
-        // Perbarui status tombol setiap kali pengguna kembali ke aplikasi
-        updateButtonState();
+        updateButtonState(); // Perbarui status tombol setiap kali kembali ke aplikasi
+    }
+
+    private void startScreenCapture() {
+        startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_CODE_SCREEN_CAPTURE);
     }
 
     private void startRecorderService(int resultCode, Intent data) {
@@ -65,19 +75,25 @@ public class MainActivity extends AppCompatActivity {
         serviceIntent.putExtra(RecorderService.EXTRA_RESULT_CODE, resultCode);
         serviceIntent.putExtra(RecorderService.EXTRA_DATA, data);
         startForegroundService(serviceIntent);
-        updateButtonState(); // Segarkan status tombol
-        finish(); // Tutup activity
+        updateButtonState();
+        finish(); // Tutup activity agar tidak mengganggu
     }
 
     private void stopRecorderService() {
         Intent serviceIntent = new Intent(this, RecorderService.class);
         serviceIntent.setAction(RecorderService.ACTION_STOP);
-        startService(serviceIntent); // Cukup 'startService' untuk mengirim perintah
-        Toast.makeText(this, "Perekaman Dihentikan.", Toast.LENGTH_SHORT).show();
-        updateButtonState(); // Segarkan status tombol
+        startService(serviceIntent);
+        updateButtonState();
     }
     
-    // Fungsi untuk memeriksa apakah service sedang berjalan
+    private void updateButtonState() {
+        if (isServiceRunning(RecorderService.class)) {
+            toggleButton.setText("Stop Recording");
+        } else {
+            toggleButton.setText("Start Recording");
+        }
+    }
+
     private boolean isServiceRunning(Class<?> serviceClass) {
         ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
         for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
@@ -88,27 +104,22 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    // Fungsi untuk mengubah teks dan warna tombol
-    private void updateButtonState() {
-        if (isServiceRunning(RecorderService.class)) {
-            toggleButton.setText("Stop Recording");
-            // Kamu bisa menambahkan perubahan warna di sini
-            // toggleButton.setBackgroundColor(ContextCompat.getColor(this, R.color.red));
-        } else {
-            toggleButton.setText("Start Recording");
-            // toggleButton.setBackgroundColor(ContextCompat.getColor(this, R.color.green));
+    private boolean checkAndRequestPermissions() {
+        List<String> listPermissionsNeeded = new ArrayList<>();
+        for (String p : PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
+                listPermissionsNeeded.add(p);
+            }
         }
+        if (!listPermissionsNeeded.isEmpty()) {
+            ActivityCompat.requestPermissions(this, listPermissionsNeeded.toArray(new String[0]), REQUEST_CODE_PERMISSIONS);
+            return false;
+        }
+        return true;
     }
-    
-    // =================================================================
-    //      BAGIAN MANAJEMEN IZIN & HASIL (Tidak berubah)
-    // =================================================================
-    private void startScreenCapture() {
-        startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_CODE_SCREEN_CAPTURE);
-    }
-    
+
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_CODE_SCREEN_CAPTURE) {
             if (resultCode == RESULT_OK) {
@@ -118,41 +129,28 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-    private boolean checkAndRequestPermissions() {
-        java.util.List<String> listPermissionsNeeded = new java.util.ArrayList<>();
-        for (String p : PERMISSIONS) {
-            if (ContextCompat.checkSelfPermission(this, p) != PackageManager.PERMISSION_GRANTED) {
-                listPermissionsNeeded.add(p);
-            }
-        }
 
-        if (!listPermissionsNeeded.isEmpty()) {
-            ActivityCompat.requestPermissions(this, listPermissionsNeeded.toArray(new String[0]), REQUEST_CODE_PERMISSIONS);
-            return false;
-        }
-        return true;
-    }
-    
-    
-    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_CODE_PERMISSIONS) {
-            // Cek apakah semua izin yang diminta telah diberikan
-            boolean allPermissionsGranted = true;
-            for (int grantResult : grantResults) {
-                if (grantResult != PackageManager.PERMISSION_GRANTED) {
-                    allPermissionsGranted = false;
-                    break;
+            boolean allGranted = true;
+            if (grantResults.length > 0) {
+                for (int result : grantResults) {
+                    if (result != PackageManager.PERMISSION_GRANTED) {
+                        allGranted = false;
+                        break;
+                    }
                 }
+            } else {
+                allGranted = false;
             }
-
-            if (allPermissionsGranted) {
-                // Jika pengguna memberikan izin, SEKARANG baru kita mulai proses rekam layar
+            
+            if (allGranted) {
                 startScreenCapture();
             } else {
                 Toast.makeText(this, "Izin audio dibutuhkan untuk merekam.", Toast.LENGTH_LONG).show();
             }
         }
     }
-    
 }
