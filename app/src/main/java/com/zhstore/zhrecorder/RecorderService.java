@@ -64,28 +64,28 @@ public class RecorderService extends Service {
         return START_NOT_STICKY;
     }
 
-    private void startRecording(Intent intent) {
-        startForeground(NOTIFICATION_ID, buildNotification());
+    private void startRecording() {
+        if (mediaRecorder == null || mediaProjection == null) return;
+        
+        // ================== PERBAIKAN UTAMA DI SINI ==================
+        // Buat konfigurasi untuk menangkap audio internal
+        AudioPlaybackCaptureConfiguration audioConfig = new AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
+                .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
+                .addMatchingUsage(AudioAttributes.USAGE_GAME)
+                .build();
+        
+        // Beri tahu sistem untuk MENGALIHKAN audio internal ke input mikrofon
+        // Ini membutuhkan izin RECORD_AUDIO, yang sudah kita minta.
+        mediaProjection.setAudioPlaybackCaptureConfig(audioConfig);
+        // =============================================================
 
-        int resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, -1);
-        Intent data = intent.getParcelableExtra(EXTRA_DATA);
-
-        mediaProjection = projectionManager.getMediaProjection(resultCode, data);
-        if (mediaProjection == null) {
-            Log.e(TAG, "MediaProjection tidak bisa didapatkan.");
-            stopSelf();
-            return;
-        }
-
-        initRecorder();
-        createVirtualDisplay();
-
-        try {
-            mediaRecorder.start();
-        } catch (IllegalStateException e) {
-            Log.e(TAG, "Gagal memulai MediaRecorder", e);
-            stopRecording();
-        }
+        DisplayMetrics metrics = getResources().getDisplayMetrics();
+        virtualDisplay = mediaProjection.createVirtualDisplay("ZHRecorder",
+                metrics.widthPixels, metrics.heightPixels, metrics.densityDpi,
+                android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                mediaRecorder.getSurface(), null, null);
+        
+        mediaRecorder.start();
     }
 
     private void stopRecording() {
